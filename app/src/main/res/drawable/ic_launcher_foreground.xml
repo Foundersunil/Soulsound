@@ -1,0 +1,70 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- Outer subtle resonance ring -->
+    <path
+        android:pathData="M 54 26 A 28 28 0 1 1 53.99 26"
+        android:strokeWidth="1.8"
+        android:strokeColor="#55FF6A00"
+        android:strokeAlpha="0.6"
+        android:fillColor="#00000000" />
+
+    <!-- Mid resonance ring -->
+    <path
+        android:pathData="M 54 33 A 21 21 0 1 1 53.99 33"
+        android:strokeWidth="2.2"
+        android:strokeColor="#AAFF6A00"
+        android:fillColor="#00000000" />
+
+    <!-- Inner gold resonance ring -->
+    <path
+        android:pathData="M 54 40 A 14 14 0 1 1 53.99 40"
+        android:strokeWidth="2.5"
+        android:strokeColor="#FFF5D27A"
+        android:fillColor="#00000000" />
+
+    <!-- Core glowing sound frequency sphere -->
+    <path
+        android:pathData="M 54 47 A 7 7 0 1 1 53.99 47">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="50"
+                android:startY="47"
+                android:endX="58"
+                android:endY="61"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FFFF8A3D" />
+                <item android:offset="1.0" android:color="#FFFF6A00" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Waveform pulse bars on sides -->
+    <path
+        android:pathData="M 27 54 L 33 54"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:strokeColor="#FF8A3D" />
+
+    <path
+        android:pathData="M 75 54 L 81 54"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:strokeColor="#FF8A3D" />
+
+    <path
+        android:pathData="M 54 27 L 54 33"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:strokeColor="#F5D27A" />
+
+    <path
+        android:pathData="M 54 75 L 54 81"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:strokeColor="#F5D27A" />
+</vector>
