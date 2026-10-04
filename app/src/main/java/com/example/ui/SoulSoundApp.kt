@@ -37,13 +37,17 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.data.model.FrequencyItem
 import com.example.ui.components.BottomNav
+import com.example.ui.components.CreateChallengeWizard
 import com.example.ui.components.MiniPlayer
 import com.example.ui.components.TopHeader
+import com.example.ui.screens.AdminLoginScreen
 import com.example.ui.screens.AdminScreen
+import com.example.ui.screens.ChallengeScreen
 import com.example.ui.screens.DetailScreen
 import com.example.ui.screens.ExploreScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.LibraryScreen
+import com.example.ui.screens.ProfileScreen
 import com.example.ui.screens.SearchScreen
 import com.example.ui.theme.DarkBg
 import com.example.ui.theme.DarkCardElevated
@@ -84,6 +88,29 @@ fun SoulSoundApp(
 
     val showPremiumDialog by viewModel.showPremiumDialog.collectAsStateWithLifecycle()
     val premiumTargetTrack by viewModel.premiumTargetTrack.collectAsStateWithLifecycle()
+
+    val activeChallenge by viewModel.activeChallenge.collectAsStateWithLifecycle()
+    val allChallenges by viewModel.allChallenges.collectAsStateWithLifecycle()
+    val challengeDays by viewModel.challengeDays.collectAsStateWithLifecycle()
+    val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
+    val showCreateChallengeWizard by viewModel.showCreateChallengeWizard.collectAsStateWithLifecycle()
+    val activeMilestoneCelebration by viewModel.activeMilestoneCelebration.collectAsStateWithLifecycle()
+    val showChallengeCompletedCelebration by viewModel.showChallengeCompletedCelebration.collectAsStateWithLifecycle()
+    val recoveryStatusMessage by viewModel.recoveryStatusMessage.collectAsStateWithLifecycle()
+
+    val consistencyData by viewModel.consistencyData.collectAsStateWithLifecycle()
+    val weeklyActivity by viewModel.weeklyActivity.collectAsStateWithLifecycle()
+    val achievements by viewModel.achievements.collectAsStateWithLifecycle()
+    val profileFavorites by viewModel.profileFavorites.collectAsStateWithLifecycle()
+    val profileRecentlyPlayed by viewModel.profileRecentlyPlayed.collectAsStateWithLifecycle()
+    val profileAnalytics by viewModel.profileAnalytics.collectAsStateWithLifecycle()
+
+    val isAdminAuthenticated by viewModel.isAdminAuthenticated.collectAsStateWithLifecycle()
+    val currentAdminEmail by viewModel.currentAdminEmail.collectAsStateWithLifecycle()
+    val allFrequenciesAdmin by viewModel.allFrequenciesAdmin.collectAsStateWithLifecycle()
+    val adminAuditLogs by viewModel.adminAuditLogs.collectAsStateWithLifecycle()
+    val adminLoginError by viewModel.adminLoginError.collectAsStateWithLifecycle()
+    val adminLoginLoading by viewModel.adminLoginLoading.collectAsStateWithLifecycle()
 
     Box(
         modifier = Modifier
@@ -131,8 +158,7 @@ fun SoulSoundApp(
                 topBar = {
                     TopHeader(
                         onSearchClick = { viewModel.navigateTo(Screen.SEARCH) },
-                        onAdminClick = { viewModel.navigateTo(Screen.ADMIN) },
-                        isAdminActive = currentScreen == Screen.ADMIN,
+                        onAdminAccess = { viewModel.attemptOpenAdmin() },
                         modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars)
                     )
                 },
@@ -174,11 +200,26 @@ fun SoulSoundApp(
                             currentTrack = currentTrack,
                             isPlaying = isPlaying,
                             favoriteIds = favoriteIds,
+                            activeChallenge = activeChallenge,
                             onExploreClick = { viewModel.navigateTo(Screen.EXPLORE) },
                             onGoalSelected = { goal -> viewModel.filterByGoal(goal) },
                             onFrequencyClick = { freq -> viewModel.openDetail(freq) },
-                            onPlayClick = { freq -> viewModel.playTrack(freq) },
-                            onFavoriteToggle = { freqId -> viewModel.toggleFavorite(freqId) }
+                            onPlayClick = { freq -> viewModel.playOrToggleTrack(freq) },
+                            onFavoriteToggle = { freqId -> viewModel.toggleFavorite(freqId) },
+                            onChallengeClick = { viewModel.navigateTo(Screen.CHALLENGES) },
+                            onStartChallengeClick = { viewModel.startCreateChallengeFlow() }
+                        )
+                        Screen.CHALLENGES -> ChallengeScreen(
+                            activeChallenge = activeChallenge,
+                            allChallenges = allChallenges,
+                            challengeDays = challengeDays,
+                            userProfile = userProfile,
+                            allFrequencies = allFrequencies,
+                            onStartCreateChallenge = { viewModel.startCreateChallengeFlow() },
+                            onStartPractice = { challenge -> viewModel.startChallengePractice(challenge) },
+                            onCompleteTodayPractice = { viewModel.completeTodayPractice() },
+                            onUseRecoveryDay = { viewModel.useRecoveryDay() },
+                            onAbandonChallenge = { viewModel.abandonActiveChallenge() }
                         )
                         Screen.EXPLORE -> ExploreScreen(
                             frequencies = filteredExplore,
@@ -190,7 +231,7 @@ fun SoulSoundApp(
                             onCategorySelected = { cat -> viewModel.selectCategory(cat) },
                             onSortSelected = { sort -> viewModel.setSortOption(sort) },
                             onFrequencyClick = { freq -> viewModel.openDetail(freq) },
-                            onPlayClick = { freq -> viewModel.playTrack(freq) },
+                            onPlayClick = { freq -> viewModel.playOrToggleTrack(freq) },
                             onFavoriteToggle = { freqId -> viewModel.toggleFavorite(freqId) }
                         )
                         Screen.SEARCH -> SearchScreen(
@@ -200,7 +241,7 @@ fun SoulSoundApp(
                             isPlaying = isPlaying,
                             onQueryChange = { q -> viewModel.setSearchQuery(q) },
                             onFrequencyClick = { freq -> viewModel.openDetail(freq) },
-                            onPlayClick = { freq -> viewModel.playTrack(freq) }
+                            onPlayClick = { freq -> viewModel.playOrToggleTrack(freq) }
                         )
                         Screen.LIBRARY -> LibraryScreen(
                             allFrequencies = allFrequencies,
@@ -209,20 +250,82 @@ fun SoulSoundApp(
                             playlists = playlists,
                             currentTrack = currentTrack,
                             isPlaying = isPlaying,
+                            userProfile = userProfile,
+                            allChallenges = allChallenges,
                             onFrequencyClick = { freq -> viewModel.openDetail(freq) },
-                            onPlayClick = { freq -> viewModel.playTrack(freq) },
+                            onPlayClick = { freq -> viewModel.playOrToggleTrack(freq) },
                             onFavoriteToggle = { freqId -> viewModel.toggleFavorite(freqId) },
                             onCreatePlaylist = { title -> viewModel.createPlaylist(title) },
                             onDeletePlaylist = { id -> viewModel.deletePlaylist(id) }
                         )
-                        Screen.ADMIN -> AdminScreen(
-                            allFrequencies = allFrequencies,
-                            isAdminMode = isAdminMode,
-                            onToggleAdminMode = { viewModel.toggleAdminMode() },
-                            onSaveFrequency = { item -> viewModel.saveCustomFrequency(item) },
-                            onDeleteFrequency = { id -> viewModel.deleteFrequency(id) },
-                            onRestoreDefaults = { viewModel.restoreStarterLibrary() }
+                        Screen.PROFILE -> ProfileScreen(
+                            userProfile = userProfile,
+                            consistencyData = consistencyData,
+                            analytics = profileAnalytics,
+                            activeChallenge = activeChallenge,
+                            weeklyActivity = weeklyActivity,
+                            achievements = achievements,
+                            favorites = profileFavorites,
+                            recentlyPlayed = profileRecentlyPlayed,
+                            currentTrack = currentTrack,
+                            isPlaying = isPlaying,
+                            onPlayClick = { freq -> viewModel.playOrToggleTrack(freq) },
+                            onFrequencyClick = { freq -> viewModel.openDetail(freq) },
+                            onViewAllFavorites = { viewModel.navigateTo(Screen.LIBRARY) },
+                            onContinueChallenge = {
+                                val currentCh = activeChallenge
+                                if (currentCh != null) {
+                                    viewModel.startChallengePractice(currentCh)
+                                } else {
+                                    viewModel.navigateTo(Screen.CHALLENGES)
+                                }
+                            },
+                            onStartChallenge = { viewModel.startCreateChallengeFlow() },
+                            onStartFirstSession = {
+                                val track = allFrequencies.firstOrNull()
+                                if (track != null) {
+                                    viewModel.playOrToggleTrack(track)
+                                } else {
+                                    viewModel.navigateTo(Screen.EXPLORE)
+                                }
+                            },
+                            onExploreFrequencies = { viewModel.navigateTo(Screen.EXPLORE) },
+                            onGoalSelected = { goal ->
+                                viewModel.updateCurrentGoal(goal)
+                            },
+                            onUpdateProfile = { name, email, goals, reminderTime, reminderEnabled, avatarUri ->
+                                viewModel.updateUserProfile(name, email, goals, reminderTime, reminderEnabled, avatarUri)
+                            },
+                            onLogout = { viewModel.resetOrLogoutProfile() }
                         )
+                        Screen.ADMIN_LOGIN -> AdminLoginScreen(
+                            onLoginSubmit = { email, password -> viewModel.loginAdmin(email, password) },
+                            onBackToApp = { viewModel.navigateTo(Screen.HOME) },
+                            errorMessage = adminLoginError,
+                            isLoading = adminLoginLoading
+                        )
+                        Screen.ADMIN -> {
+                            if (!isAdminAuthenticated) {
+                                AdminLoginScreen(
+                                    onLoginSubmit = { email, password -> viewModel.loginAdmin(email, password) },
+                                    onBackToApp = { viewModel.navigateTo(Screen.HOME) },
+                                    errorMessage = adminLoginError,
+                                    isLoading = adminLoginLoading
+                                )
+                            } else {
+                                AdminScreen(
+                                    allFrequencies = allFrequenciesAdmin,
+                                    auditLogs = adminAuditLogs,
+                                    adminEmail = currentAdminEmail ?: "admin@soulsound.app",
+                                    onSaveFrequency = { item -> viewModel.saveCustomFrequency(item) },
+                                    onSoftDeleteFrequency = { id, name -> viewModel.softDeleteFrequency(id, name) },
+                                    onRestoreFrequency = { id, name -> viewModel.restoreFrequency(id, name) },
+                                    onPermanentDeleteFrequency = { id, name -> viewModel.permanentDeleteFrequency(id, name) },
+                                    onRestoreDefaults = { viewModel.restoreStarterLibrary() },
+                                    onLogoutAdmin = { viewModel.logoutAdmin() }
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -279,6 +382,178 @@ fun SoulSoundApp(
                 dismissButton = {
                     TextButton(onClick = { viewModel.dismissPremiumDialog() }) {
                         Text("Continue Preview", color = TextMuted)
+                    }
+                },
+                containerColor = DarkCardElevated
+            )
+        }
+
+        // Create Challenge Wizard Dialog
+        if (showCreateChallengeWizard) {
+            CreateChallengeWizard(
+                allFrequencies = allFrequencies,
+                onDismiss = { viewModel.dismissCreateChallengeWizard() },
+                onStartChallenge = { duration, goal, freq, dailyTarget, reminder, enabled ->
+                    viewModel.createNewChallenge(duration, goal, freq, dailyTarget, reminder, enabled)
+                }
+            )
+        }
+
+        // Milestone Celebration Dialog
+        if (activeMilestoneCelebration != null) {
+            val milestone = activeMilestoneCelebration!!
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissMilestoneCelebration() },
+                title = {
+                    Text(
+                        text = milestone.title,
+                        color = GoldAccent,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 20.sp
+                    )
+                },
+                text = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "🔥",
+                            fontSize = 32.sp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = milestone.message,
+                            color = TextPrimary,
+                            fontSize = 14.sp,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Box(
+                            modifier = Modifier
+                                .background(Color(0xFF26180B), RoundedCornerShape(12.dp))
+                                .padding(horizontal = 14.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = "+${milestone.pointsAwarded} SOUL POINTS EARNED",
+                                color = GoldAccent,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = { viewModel.dismissMilestoneCelebration() },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = OrangePrimary,
+                            contentColor = Color.Black
+                        )
+                    ) {
+                        Text("Keep Going", fontWeight = FontWeight.Bold)
+                    }
+                },
+                containerColor = DarkCardElevated
+            )
+        }
+
+        // Challenge Complete Grand Celebration Dialog
+        if (showChallengeCompletedCelebration) {
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissChallengeCompletedCelebration() },
+                title = {
+                    Text(
+                        text = "🎉 CHALLENGE COMPLETE!",
+                        color = GoldAccent,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 20.sp
+                    )
+                },
+                text = {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(text = "🏆", fontSize = 36.sp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "“You Showed Up For Yourself.”",
+                            color = TextPrimary,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "You built a true daily practice. Your consistency and focus have created lasting neuroplastic harmony.",
+                            color = TextMuted,
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Box(
+                            modifier = Modifier
+                                .background(Color(0xFF2B180A), RoundedCornerShape(14.dp))
+                                .padding(horizontal = 16.dp, vertical = 10.dp)
+                        ) {
+                            Text(
+                                text = "+300 MASTER BONUS POINTS ⭐",
+                                color = GoldAccent,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.dismissChallengeCompletedCelebration()
+                            viewModel.startCreateChallengeFlow()
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = OrangePrimary,
+                            contentColor = Color.Black
+                        )
+                    ) {
+                        Text("Start Next Challenge", fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { viewModel.dismissChallengeCompletedCelebration() }) {
+                        Text("View My Journey", color = TextPrimary)
+                    }
+                },
+                containerColor = DarkCardElevated
+            )
+        }
+
+        // Recovery Day Status Dialog
+        if (recoveryStatusMessage != null) {
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissRecoveryMessage() },
+                title = {
+                    Text(
+                        text = "Recovery Day Shield",
+                        color = OrangePrimary,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Text(
+                        text = recoveryStatusMessage!!,
+                        color = TextPrimary,
+                        fontSize = 13.sp
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = { viewModel.dismissRecoveryMessage() },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = OrangePrimary,
+                            contentColor = Color.Black
+                        )
+                    ) {
+                        Text("Got it", fontWeight = FontWeight.Bold)
                     }
                 },
                 containerColor = DarkCardElevated

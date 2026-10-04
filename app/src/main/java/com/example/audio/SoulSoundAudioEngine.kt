@@ -3,6 +3,7 @@ package com.example.audio
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import android.media.MediaPlayer
 import com.example.data.model.FrequencyItem
 import com.example.data.model.SoundMode
 import kotlinx.coroutines.CoroutineScope
@@ -14,6 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.io.File
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.sin
@@ -23,6 +25,7 @@ class SoulSoundAudioEngine(
 ) {
     private val sampleRate = 44100
     private var audioTrack: AudioTrack? = null
+    private var mediaPlayer: MediaPlayer? = null
     private var synthesisJob: Job? = null
     private var timerJob: Job? = null
 
@@ -62,6 +65,7 @@ class SoulSoundAudioEngine(
 
         if (!sameTrack) {
             _progressMs.value = 0L
+            stopPlayback()
         }
 
         startAudio()
@@ -79,12 +83,19 @@ class SoulSoundAudioEngine(
 
     fun pause() {
         _isPlaying.value = false
+        try {
+            mediaPlayer?.pause()
+        } catch (_: Exception) {}
         stopSynthesis()
     }
 
     fun seekTo(positionMs: Long) {
         val total = _totalDurationMs.value
-        _progressMs.value = positionMs.coerceIn(0L, if (total == Long.MAX_VALUE) Long.MAX_VALUE else total)
+        val clamped = positionMs.coerceIn(0L, if (total == Long.MAX_VALUE) Long.MAX_VALUE else total)
+        _progressMs.value = clamped
+        try {
+            mediaPlayer?.seekTo(clamped.toInt())
+        } catch (_: Exception) {}
     }
 
     fun setSoundMode(mode: SoundMode) {
@@ -96,6 +107,9 @@ class SoulSoundAudioEngine(
         _volume.value = clamped
         try {
             audioTrack?.setVolume(clamped)
+        } catch (_: Exception) {}
+        try {
+            mediaPlayer?.setVolume(clamped, clamped)
         } catch (_: Exception) {}
     }
 
@@ -138,6 +152,73 @@ class SoulSoundAudioEngine(
     }
 
     private fun startAudio() {
+        val track = _currentTrack.value ?: return
+        _isPlaying.value = true
+
+        // 1. Check if track has an uploaded audio file
+        val hasLocalFile = !track.audioFilePath.isNullOrBlank() && File(track.audioFilePath).exists()
+        val hasUrl = !track.audioUrl.isNullOrBlank()
+
+        if (hasLocalFile || hasUrl) {
+            stopSynthesis()
+            try {
+                if (mediaPlayer == null) {
+                    val mp = MediaPlayer().apply {
+                        setAudioAttributes(
+                            AudioAttributes.Builder()
+                                .setUsage(AudioAttributes.USAGE_MEDIA)
+                                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                                .build()
+                        )
+                        if (hasLocalFile) {
+                            setDataSource(track.audioFilePath)
+                        } else {
+                            setDataSource(track.audioUrl)
+                        }
+                        prepare()
+                        isLooping = true
+                        setVolume(_volume.value, _volume.value)
+                    }
+                    if (_progressMs.value > 0L) {
+                        mp.seekTo(_progressMs.value.toInt())
+                    }
+                    if (mp.duration > 0) {
+                        _totalDurationMs.value = mp.duration.toLong()
+                    }
+                    mp.start()
+                    mediaPlayer = mp
+                } else {
+                    mediaPlayer?.start()
+                }
+
+                // Progress & visual amplitude loop for uploaded audio track
+                synthesisJob?.cancel()
+                synthesisJob = scope.launch(Dispatchers.Default) {
+                    var pulsePhase = 0.0
+                    while (isActive && _isPlaying.value) {
+                        val mp = mediaPlayer
+                        if (mp != null && mp.isPlaying) {
+                            _progressMs.value = mp.currentPosition.toLong()
+                            pulsePhase += 0.2
+                            val amp = 0.25f + 0.35f * sin(pulsePhase).toFloat()
+                            _liveAmplitude.value = amp.coerceIn(0.12f, 0.95f)
+                        }
+                        delay(250L)
+                    }
+                }
+                return
+            } catch (e: Exception) {
+                e.printStackTrace()
+                // Graceful fallback to real-time Solfeggio PCM synthesis if file playback encounters error
+                stopPlayback()
+            }
+        }
+
+        // 2. Real-time Solfeggio mathematical PCM synthesis
+        startMathematicalSynthesis(track)
+    }
+
+    private fun startMathematicalSynthesis(track: FrequencyItem) {
         stopSynthesis()
         _isPlaying.value = true
 
@@ -181,13 +262,12 @@ class SoulSoundAudioEngine(
             var lastProgressUpdate = System.currentTimeMillis()
 
             while (isActive && _isPlaying.value) {
-                val track = _currentTrack.value ?: break
+                val current = _currentTrack.value ?: break
                 val mode = _currentSoundMode.value
                 val vol = _volume.value
 
-                // If Hz is ultra low (e.g. 3.2 Hz Delta), use a calming 432 Hz carrier detuned by 3.2 Hz
-                val baseFreq = if (track.hz < 20f) 432.0f else track.hz
-                val binauralOffset = if (track.binauralBeatHz > 0f) track.binauralBeatHz else 5.0f
+                val baseFreq = if (current.hz < 20f) 432.0f else current.hz
+                val binauralOffset = if (current.binauralBeatHz > 0f) current.binauralBeatHz else 5.0f
 
                 val leftFreq = when (mode) {
                     SoundMode.PURE_FREQUENCY -> baseFreq.toDouble()
@@ -211,12 +291,10 @@ class SoulSoundAudioEngine(
                     val lSine = sin(leftPhase)
                     val rSine = sin(rightPhase)
 
-                    // Natural overtones for sound therapy warmth
                     val overtone = if (mode == SoundMode.HARMONIC_DRONE) {
                         sin(harmonicPhase) * 0.18 + sin(harmonicPhase * 1.5) * 0.08
                     } else 0.0
 
-                    // Gentle breathing acoustic pulse (0.1 Hz)
                     val breathingMod = 0.92 + 0.08 * sin(leftPhase * 0.001)
 
                     val leftSample = ((lSine + overtone * 0.6) * breathingMod * vol).coerceIn(-1.0, 1.0)
@@ -263,6 +341,15 @@ class SoulSoundAudioEngine(
         }
     }
 
+    private fun stopPlayback() {
+        try {
+            mediaPlayer?.stop()
+            mediaPlayer?.release()
+        } catch (_: Exception) {}
+        mediaPlayer = null
+        stopSynthesis()
+    }
+
     private fun stopSynthesis() {
         synthesisJob?.cancel()
         synthesisJob = null
@@ -277,7 +364,7 @@ class SoulSoundAudioEngine(
     }
 
     fun release() {
-        stopSynthesis()
+        stopPlayback()
         timerJob?.cancel()
     }
 }

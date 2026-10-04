@@ -58,6 +58,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.model.ChallengeItem
 import com.example.data.model.FrequencyItem
 import com.example.ui.components.FrequencyCard
 import com.example.ui.theme.BorderOrange
@@ -78,11 +79,14 @@ fun HomeScreen(
     currentTrack: FrequencyItem?,
     isPlaying: Boolean,
     favoriteIds: Set<String>,
+    activeChallenge: ChallengeItem? = null,
     onExploreClick: () -> Unit,
     onGoalSelected: (String) -> Unit,
     onFrequencyClick: (FrequencyItem) -> Unit,
     onPlayClick: (FrequencyItem) -> Unit,
     onFavoriteToggle: (String) -> Unit,
+    onChallengeClick: () -> Unit = {},
+    onStartChallengeClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
@@ -97,6 +101,15 @@ fun HomeScreen(
                     val track = currentTrack ?: featuredFrequencies.firstOrNull()
                     if (track != null) onPlayClick(track)
                 }
+            )
+        }
+
+        // Home Challenge Consistency Widget
+        item {
+            HomeChallengeWidget(
+                activeChallenge = activeChallenge,
+                onChallengeClick = onChallengeClick,
+                onStartChallengeClick = onStartChallengeClick
             )
         }
 
@@ -297,6 +310,124 @@ private fun HeroSection(
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold
                     )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeChallengeWidget(
+    activeChallenge: ChallengeItem?,
+    onChallengeClick: () -> Unit,
+    onStartChallengeClick: () -> Unit
+) {
+    if (activeChallenge != null) {
+        Card(
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = DarkCardElevated),
+            border = BorderStroke(1.dp, BorderOrange),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 6.dp)
+                .clickable(onClick = onChallengeClick)
+                .testTag("home_active_challenge_widget")
+        ) {
+            Column(modifier = Modifier.padding(18.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "YOUR CHALLENGE",
+                        color = GoldAccent,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.2.sp
+                    )
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(text = "🔥 ${activeChallenge.streak} Day Streak", color = OrangePrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Text(
+                    text = "Day ${activeChallenge.currentDay} / ${activeChallenge.durationDays} • ${activeChallenge.goal}",
+                    color = TextPrimary,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = "Today's Practice: ${activeChallenge.frequencyName} (${activeChallenge.frequencyHz.toInt()} Hz) • ${activeChallenge.dailyTargetMinutes} min",
+                    color = TextMuted,
+                    fontSize = 12.sp
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Button(
+                    onClick = onChallengeClick,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary, contentColor = Color.Black),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(42.dp)
+                ) {
+                    Text("CONTINUE CHALLENGE", fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
+                }
+            }
+        }
+    } else {
+        Card(
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF19120D)),
+            border = BorderStroke(1.dp, BorderSubtle),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 6.dp)
+                .clickable(onClick = onStartChallengeClick)
+                .testTag("home_ready_challenge_widget")
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    Text(text = "🔥", fontSize = 26.sp)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "READY FOR A CHALLENGE?",
+                            color = OrangePrimary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp
+                        )
+                        Text(
+                            text = "Build a consistent sound & frequency practice.",
+                            color = TextPrimary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+
+                Button(
+                    onClick = onStartChallengeClick,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary, contentColor = Color.Black),
+                    modifier = Modifier.height(38.dp)
+                ) {
+                    Text("Start", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

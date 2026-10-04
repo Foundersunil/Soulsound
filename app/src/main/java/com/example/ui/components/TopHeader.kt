@@ -1,8 +1,10 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tune
@@ -20,6 +23,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,13 +42,16 @@ import com.example.ui.theme.OrangePrimary
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TopHeader(
     onSearchClick: () -> Unit,
-    onAdminClick: () -> Unit,
-    isAdminActive: Boolean,
+    onAdminAccess: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    var tapCount by remember { mutableIntStateOf(0) }
+    var lastTapTime by remember { mutableLongStateOf(0L) }
+
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -48,8 +59,29 @@ fun TopHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Brand and Tagline
-        Column {
+        // Brand and Tagline with discrete secure admin access (5 taps or long-press)
+        Column(
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .combinedClickable(
+                    onClick = {
+                        val now = System.currentTimeMillis()
+                        if (now - lastTapTime < 1000) {
+                            tapCount++
+                            if (tapCount >= 5) {
+                                tapCount = 0
+                                onAdminAccess?.invoke()
+                            }
+                        } else {
+                            tapCount = 1
+                        }
+                        lastTapTime = now
+                    },
+                    onLongClick = {
+                        onAdminAccess?.invoke()
+                    }
+                )
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
@@ -75,7 +107,7 @@ fun TopHeader(
             )
         }
 
-        // Actions: Search + Admin/Studio
+        // Actions: Global Search only (Admin controls removed completely from normal user UI)
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(
                 onClick = onSearchClick,
@@ -88,30 +120,6 @@ fun TopHeader(
                     contentDescription = "Search",
                     tint = TextPrimary,
                     modifier = Modifier.size(22.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(4.dp))
-
-            Box(
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(CircleShape)
-                    .background(if (isAdminActive) OrangePrimary.copy(alpha = 0.2f) else Color(0xFF1E1E1E))
-                    .border(
-                        1.dp,
-                        if (isAdminActive) OrangePrimary else BorderOrange,
-                        CircleShape
-                    )
-                    .clickable(onClick = onAdminClick)
-                    .testTag("header_admin_btn"),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Tune,
-                    contentDescription = "Studio Settings",
-                    tint = if (isAdminActive) OrangePrimary else GoldAccent,
-                    modifier = Modifier.size(19.dp)
                 )
             }
         }

@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,6 +36,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -59,7 +61,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.db.ListeningHistoryEntity
 import com.example.data.db.PlaylistEntity
+import com.example.data.model.ChallengeItem
 import com.example.data.model.FrequencyItem
+import com.example.data.model.UserProfileStats
 import com.example.ui.theme.BorderOrange
 import com.example.ui.theme.BorderSubtle
 import com.example.ui.theme.DarkCard
@@ -78,6 +82,8 @@ fun LibraryScreen(
     playlists: List<PlaylistEntity>,
     currentTrack: FrequencyItem?,
     isPlaying: Boolean,
+    userProfile: UserProfileStats = UserProfileStats(),
+    allChallenges: List<ChallengeItem> = emptyList(),
     onFrequencyClick: (FrequencyItem) -> Unit,
     onPlayClick: (FrequencyItem) -> Unit,
     onFavoriteToggle: (String) -> Unit,
@@ -89,7 +95,7 @@ fun LibraryScreen(
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     var newPlaylistTitle by remember { mutableStateOf("") }
 
-    val tabs = listOf("Favorites", "Recently Played", "Playlists")
+    val tabs = listOf("Favorites", "Recently Played", "Playlists", "Profile")
 
     Column(modifier = modifier.fillMaxSize()) {
         // Header
@@ -324,6 +330,187 @@ fun LibraryScreen(
                                             modifier = Modifier.size(20.dp)
                                         )
                                     }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            3 -> {
+                // Profile & Consistency Journey
+                LazyColumn(
+                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 120.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    item {
+                        Card(
+                            shape = RoundedCornerShape(20.dp),
+                            colors = CardDefaults.cardColors(containerColor = DarkCardElevated),
+                            border = BorderStroke(1.dp, BorderOrange),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(20.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = "USER PROFILE",
+                                            color = GoldAccent,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            letterSpacing = 1.2.sp
+                                        )
+                                        Text(
+                                            text = userProfile.levelTitle,
+                                            color = TextPrimary,
+                                            fontSize = 18.sp,
+                                            fontWeight = FontWeight.ExtraBold
+                                        )
+                                    }
+
+                                    Box(
+                                        modifier = Modifier
+                                            .size(46.dp)
+                                            .background(Color(0xFF261708), CircleShape)
+                                            .border(1.dp, GoldAccent, CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "L${userProfile.levelNumber}",
+                                            color = GoldAccent,
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Black
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "${userProfile.soulPoints} / ${userProfile.levelMaxXp} XP",
+                                        color = TextMuted,
+                                        fontSize = 12.sp
+                                    )
+                                    Text(
+                                        text = "Level ${userProfile.levelNumber}",
+                                        color = OrangePrimary,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                LinearProgressIndicator(
+                                    progress = { userProfile.levelProgressFraction },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(6.dp)
+                                        .clip(CircleShape),
+                                    color = OrangePrimary,
+                                    trackColor = Color(0x33FF6A00)
+                                )
+                            }
+                        }
+                    }
+
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Card(
+                                shape = RoundedCornerShape(14.dp),
+                                colors = CardDefaults.cardColors(containerColor = DarkCard),
+                                border = BorderStroke(1.dp, BorderSubtle),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(text = "🔥 ${userProfile.currentStreak}d", color = OrangePrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                    Text(text = "Current Streak", color = TextMuted, fontSize = 11.sp)
+                                }
+                            }
+
+                            Card(
+                                shape = RoundedCornerShape(14.dp),
+                                colors = CardDefaults.cardColors(containerColor = DarkCard),
+                                border = BorderStroke(1.dp, BorderSubtle),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(text = "⭐ ${userProfile.soulPoints}", color = GoldAccent, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                    Text(text = "Soul Points", color = TextMuted, fontSize = 11.sp)
+                                }
+                            }
+
+                            Card(
+                                shape = RoundedCornerShape(14.dp),
+                                colors = CardDefaults.cardColors(containerColor = DarkCard),
+                                border = BorderStroke(1.dp, BorderSubtle),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(text = "${userProfile.longestStreak}d", color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                    Text(text = "Longest Streak", color = TextMuted, fontSize = 11.sp)
+                                }
+                            }
+                        }
+                    }
+
+                    item {
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = DarkCard),
+                            border = BorderStroke(1.dp, BorderSubtle),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                    text = "Practice Statistics",
+                                    color = TextPrimary,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(text = "Total Practice Time", color = TextMuted, fontSize = 12.sp)
+                                    Text(text = "${userProfile.totalPracticeMinutes} Minutes", color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(text = "Completed Days", color = TextMuted, fontSize = 12.sp)
+                                    Text(text = "${userProfile.totalDaysCompleted} Days", color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(text = "Completed Challenges", color = TextMuted, fontSize = 12.sp)
+                                    Text(text = "${userProfile.completedChallengesCount}", color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }

@@ -18,12 +18,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.GraphicEq
 import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.LocalFireDepartment
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -59,10 +61,10 @@ fun BottomNav(
 ) {
     val items = listOf(
         NavItem(Screen.HOME, "Home", Icons.Filled.Home, Icons.Outlined.Home),
+        NavItem(Screen.CHALLENGES, "Challenges", Icons.Filled.LocalFireDepartment, Icons.Outlined.LocalFireDepartment),
         NavItem(Screen.EXPLORE, "Explore", Icons.Filled.GraphicEq, Icons.Outlined.GraphicEq),
-        NavItem(Screen.SEARCH, "Search", Icons.Filled.Search, Icons.Outlined.Search),
         NavItem(Screen.LIBRARY, "Library", Icons.Filled.Bookmark, Icons.Outlined.BookmarkBorder),
-        NavItem(Screen.ADMIN, "Studio", Icons.Filled.Tune, Icons.Outlined.Tune)
+        NavItem(Screen.PROFILE, "Profile", Icons.Filled.Person, Icons.Outlined.Person)
     )
 
     Box(

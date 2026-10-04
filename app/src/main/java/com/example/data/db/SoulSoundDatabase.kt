@@ -11,9 +11,13 @@ import androidx.room.RoomDatabase
         FavoriteEntity::class,
         ListeningHistoryEntity::class,
         PlaylistEntity::class,
-        PlaylistTrackEntity::class
+        PlaylistTrackEntity::class,
+        ChallengeEntity::class,
+        ChallengeDayEntity::class,
+        UserProfileEntity::class,
+        AdminAuditLogEntity::class
     ],
-    version = 1,
+    version = 5,
     exportSchema = false
 )
 abstract class SoulSoundDatabase : RoomDatabase() {

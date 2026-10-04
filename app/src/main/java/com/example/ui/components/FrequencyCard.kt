@@ -274,7 +274,7 @@ fun FrequencyCard(
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = if (isCurrentTrack && isPlaying) "Playing" else "Play",
+                    text = if (isCurrentTrack && isPlaying) "Pause" else "Play",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
                 )

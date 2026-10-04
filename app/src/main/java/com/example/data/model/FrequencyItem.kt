@@ -15,7 +15,13 @@ data class FrequencyItem(
     val isPremium: Boolean = false,
     val binauralBeatHz: Float = 0f, // 0 = none, e.g. 4.0 for Delta, 6.0 for Theta, 10.0 for Alpha
     val harmonicWarmth: Float = 0.35f,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val isDeleted: Boolean = false,
+    val deletedAtMillis: Long? = null,
+    val deletedBy: String? = null,
+    val audioUrl: String? = null,
+    val audioFileName: String? = null,
+    val audioFilePath: String? = null
 ) {
     val displayHz: String
         get() = if (hz % 1.0f == 0.0f) "${hz.toInt()} Hz" else "$hz Hz"

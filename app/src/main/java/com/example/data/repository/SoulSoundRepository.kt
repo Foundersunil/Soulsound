@@ -1,12 +1,19 @@
 package com.example.data.repository
 
+import com.example.data.db.ChallengeDayEntity
+import com.example.data.db.ChallengeEntity
 import com.example.data.db.FavoriteEntity
 import com.example.data.db.FrequencyEntity
 import com.example.data.db.ListeningHistoryEntity
 import com.example.data.db.PlaylistEntity
 import com.example.data.db.PlaylistTrackEntity
 import com.example.data.db.SoulSoundDao
+import com.example.data.db.UserProfileEntity
+import com.example.data.model.ChallengeDayItem
+import com.example.data.model.ChallengeItem
 import com.example.data.model.FrequencyItem
+import com.example.data.model.MilestoneCelebration
+import com.example.data.model.UserProfileStats
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -28,8 +35,14 @@ class SoulSoundRepository(
     val allFrequencies: Flow<List<FrequencyItem>> =
         dao.getAllFrequencies().map { list -> list.map { it.toDomain() } }
 
+    val allFrequenciesAdmin: Flow<List<FrequencyItem>> =
+        dao.getAllFrequenciesAdmin().map { list -> list.map { it.toDomain() } }
+
     val featuredFrequencies: Flow<List<FrequencyItem>> =
         dao.getFeaturedFrequencies().map { list -> list.map { it.toDomain() } }
+
+    val allAuditLogs: Flow<List<com.example.data.model.AdminAuditLog>> =
+        dao.getAllAuditLogs().map { list -> list.map { it.toDomain() } }
 
     val favoriteIds: Flow<Set<String>> =
         dao.getAllFavorites().map { list -> list.map { it.frequencyId }.toSet() }
@@ -64,12 +77,69 @@ class SoulSoundRepository(
         )
     }
 
-    suspend fun saveFrequency(item: FrequencyItem) {
+    suspend fun saveFrequency(item: FrequencyItem, adminEmail: String = "admin@soulsound.app") {
         dao.insertFrequency(FrequencyEntity.fromDomain(item))
+        recordAuditLog(
+            action = "CREATE_OR_UPDATE",
+            resourceType = "FREQUENCY",
+            resourceId = item.id,
+            resourceName = "${item.displayHz} - ${item.name}",
+            adminEmail = adminEmail
+        )
     }
 
-    suspend fun deleteFrequency(id: String) {
+    suspend fun softDeleteFrequency(id: String, frequencyName: String = "", adminEmail: String = "admin@soulsound.app") {
+        dao.softDeleteFrequency(id = id, deletedAt = System.currentTimeMillis(), deletedBy = adminEmail)
+        recordAuditLog(
+            action = "SOFT_DELETE",
+            resourceType = "FREQUENCY",
+            resourceId = id,
+            resourceName = frequencyName.ifBlank { id },
+            adminEmail = adminEmail
+        )
+    }
+
+    suspend fun restoreFrequency(id: String, frequencyName: String = "", adminEmail: String = "admin@soulsound.app") {
+        dao.restoreFrequency(id)
+        recordAuditLog(
+            action = "RESTORE",
+            resourceType = "FREQUENCY",
+            resourceId = id,
+            resourceName = frequencyName.ifBlank { id },
+            adminEmail = adminEmail
+        )
+    }
+
+    suspend fun deleteFrequency(id: String, frequencyName: String = "", adminEmail: String = "admin@soulsound.app") {
         dao.deleteFrequency(id)
+        recordAuditLog(
+            action = "PERMANENT_DELETE",
+            resourceType = "FREQUENCY",
+            resourceId = id,
+            resourceName = frequencyName.ifBlank { id },
+            adminEmail = adminEmail
+        )
+    }
+
+    suspend fun recordAuditLog(
+        action: String,
+        resourceType: String,
+        resourceId: String,
+        resourceName: String,
+        adminEmail: String = "admin@soulsound.app"
+    ) {
+        dao.insertAuditLog(
+            com.example.data.db.AdminAuditLogEntity(
+                logId = "log_${System.currentTimeMillis()}_${java.util.UUID.randomUUID().toString().take(6)}",
+                adminUserId = "admin_root",
+                adminEmail = adminEmail,
+                action = action,
+                resourceType = resourceType,
+                resourceId = resourceId,
+                resourceName = resourceName,
+                timestampMillis = System.currentTimeMillis()
+            )
+        )
     }
 
     suspend fun createPlaylist(title: String, description: String = ""): String {
@@ -92,6 +162,221 @@ class SoulSoundRepository(
 
     fun getTracksForPlaylist(playlistId: String): Flow<List<PlaylistTrackEntity>> {
         return dao.getTracksForPlaylist(playlistId)
+    }
+
+    // Challenges
+    val activeChallenge: Flow<ChallengeItem?> =
+        dao.getActiveChallenge().map { it?.toDomain() }
+
+    val allChallenges: Flow<List<ChallengeItem>> =
+        dao.getAllChallenges().map { list -> list.map { it.toDomain() } }
+
+    val userProfile: Flow<UserProfileStats> =
+        dao.getUserProfile().map { it?.toDomain() ?: UserProfileStats() }
+
+    suspend fun updateUserProfile(profile: UserProfileStats) {
+        dao.insertOrUpdateUserProfile(com.example.data.db.UserProfileEntity.fromDomain(profile))
+    }
+
+    fun getDaysForChallenge(challengeId: String): Flow<List<ChallengeDayItem>> {
+        return dao.getDaysForChallenge(challengeId).map { dayEntities ->
+            val challenge = dao.getChallengeById(challengeId).first()?.toDomain()
+            val currentDay = challenge?.currentDay ?: 1
+            dayEntities.map { entity ->
+                ChallengeDayItem(
+                    dayNumber = entity.dayNumber,
+                    targetMinutes = entity.targetMinutes,
+                    listenedMinutes = entity.listenedMinutes,
+                    isCompleted = entity.isCompleted,
+                    completedAtMillis = entity.completedAtMillis,
+                    isCurrent = entity.dayNumber == currentDay && !entity.isCompleted,
+                    isFuture = entity.dayNumber > currentDay,
+                    isMissed = entity.dayNumber < currentDay && !entity.isCompleted
+                )
+            }
+        }
+    }
+
+    suspend fun createChallenge(
+        durationDays: Int,
+        goal: String,
+        frequency: FrequencyItem,
+        dailyTargetMinutes: Int,
+        reminderTime: String = "08:00 PM",
+        reminderEnabled: Boolean = true
+    ): String {
+        val challengeId = "ch_${System.currentTimeMillis()}"
+        val now = System.currentTimeMillis()
+        val dayMillis = 24L * 60 * 60 * 1000
+        val expectedEnd = now + (durationDays.toLong() * dayMillis)
+
+        val challenge = ChallengeEntity(
+            challengeId = challengeId,
+            durationDays = durationDays,
+            goal = goal,
+            frequencyId = frequency.id,
+            frequencyName = frequency.name,
+            frequencyHz = frequency.hz,
+            category = frequency.category,
+            dailyTargetMinutes = dailyTargetMinutes,
+            startDateMillis = now,
+            expectedEndDateMillis = expectedEnd,
+            currentDay = 1,
+            completedDays = 0,
+            streak = 0,
+            longestStreak = 0,
+            recoveryDaysAvailable = 1,
+            recoveryDaysUsed = 0,
+            status = "active",
+            rewardPoints = 0,
+            createdAtMillis = now,
+            reminderTime = reminderTime,
+            reminderEnabled = reminderEnabled,
+            isTodayCompleted = false,
+            todayListenedMinutes = 0
+        )
+        dao.insertChallenge(challenge)
+
+        val dayEntities = (1..durationDays).map { dayNum ->
+            ChallengeDayEntity(
+                dayId = "${challengeId}_day_$dayNum",
+                challengeId = challengeId,
+                dayNumber = dayNum,
+                dateMillis = now + ((dayNum - 1).toLong() * dayMillis),
+                targetMinutes = dailyTargetMinutes,
+                listenedMinutes = 0,
+                isCompleted = false,
+                completedAtMillis = null
+            )
+        }
+        dao.insertChallengeDays(dayEntities)
+        return challengeId
+    }
+
+    suspend fun completeTodayPractice(challengeId: String): MilestoneCelebration? {
+        val challengeEntity = dao.getChallengeById(challengeId).first() ?: return null
+        val challenge = challengeEntity.toDomain()
+
+        if (challenge.isTodayCompleted) return null
+
+        val now = System.currentTimeMillis()
+        val nextCompletedDays = challenge.completedDays + 1
+        val nextStreak = challenge.streak + 1
+        val nextLongestStreak = maxOf(challenge.longestStreak, nextStreak)
+
+        var pointsEarned = 10
+        var milestoneCelebration: MilestoneCelebration? = null
+
+        when (nextStreak) {
+            3 -> {
+                pointsEarned += 25
+                milestoneCelebration = MilestoneCelebration(
+                    title = "Great Start!",
+                    message = "3 consecutive days of mindful resonance!",
+                    pointsAwarded = 25,
+                    milestoneDay = 3
+                )
+            }
+            7 -> {
+                pointsEarned += 50
+                milestoneCelebration = MilestoneCelebration(
+                    title = "7-Day Streak! 🔥",
+                    message = "One full week of frequency consistency achieved!",
+                    pointsAwarded = 50,
+                    milestoneDay = 7
+                )
+            }
+            15 -> {
+                pointsEarned += 100
+                milestoneCelebration = MilestoneCelebration(
+                    title = "Halfway Strong! 🌟",
+                    message = "15 days completed! Your daily practice is becoming second nature.",
+                    pointsAwarded = 100,
+                    milestoneDay = 15
+                )
+            }
+            21 -> {
+                pointsEarned += 150
+                milestoneCelebration = MilestoneCelebration(
+                    title = "Habit Builder! 🧠",
+                    message = "21 days! Neuroplastic consistency unlocked.",
+                    pointsAwarded = 150,
+                    milestoneDay = 21
+                )
+            }
+            30 -> {
+                pointsEarned += 250
+                milestoneCelebration = MilestoneCelebration(
+                    title = "30-Day Mastery! 🏆",
+                    message = "30 days of dedicated sound meditation excellence.",
+                    pointsAwarded = 250,
+                    milestoneDay = 30
+                )
+            }
+        }
+
+        val isChallengeCompleted = nextCompletedDays >= challenge.durationDays
+        if (isChallengeCompleted) {
+            pointsEarned += 300
+            milestoneCelebration = MilestoneCelebration(
+                title = "🎉 Challenge Complete!",
+                message = "You completed all ${challenge.durationDays} days of your practice!",
+                pointsAwarded = 300,
+                milestoneDay = challenge.durationDays
+            )
+        }
+
+        val dayId = "${challengeId}_day_${challenge.currentDay}"
+        dao.updateDayProgress(
+            dayId = dayId,
+            listenedMinutes = challenge.dailyTargetMinutes,
+            isCompleted = true,
+            completedAtMillis = now
+        )
+
+        val nextCurrentDay = if (isChallengeCompleted) challenge.currentDay else (challenge.currentDay + 1).coerceAtMost(challenge.durationDays)
+        val updatedChallenge = challengeEntity.copy(
+            completedDays = nextCompletedDays,
+            currentDay = nextCurrentDay,
+            streak = nextStreak,
+            longestStreak = nextLongestStreak,
+            rewardPoints = challenge.rewardPoints + pointsEarned,
+            isTodayCompleted = true,
+            todayListenedMinutes = challenge.dailyTargetMinutes,
+            status = if (isChallengeCompleted) "completed" else "active",
+            completedAtMillis = if (isChallengeCompleted) now else null
+        )
+        dao.updateChallenge(updatedChallenge)
+
+        val currentProfile = dao.getUserProfile().first() ?: UserProfileEntity()
+        val updatedProfile = currentProfile.copy(
+            soulPoints = currentProfile.soulPoints + pointsEarned,
+            totalPracticeMinutes = currentProfile.totalPracticeMinutes + challenge.dailyTargetMinutes,
+            totalDaysCompleted = currentProfile.totalDaysCompleted + 1,
+            currentStreak = nextStreak,
+            longestStreak = maxOf(currentProfile.longestStreak, nextStreak),
+            completedChallengesCount = if (isChallengeCompleted) currentProfile.completedChallengesCount + 1 else currentProfile.completedChallengesCount
+        )
+        dao.insertOrUpdateUserProfile(updatedProfile)
+
+        return milestoneCelebration
+    }
+
+    suspend fun useRecoveryDay(challengeId: String): Boolean {
+        val challengeEntity = dao.getChallengeById(challengeId).first() ?: return false
+        if (challengeEntity.recoveryDaysAvailable <= 0) return false
+
+        val updated = challengeEntity.copy(
+            recoveryDaysAvailable = challengeEntity.recoveryDaysAvailable - 1,
+            recoveryDaysUsed = challengeEntity.recoveryDaysUsed + 1
+        )
+        dao.updateChallenge(updated)
+        return true
+    }
+
+    suspend fun abandonChallenge(challengeId: String) {
+        val challengeEntity = dao.getChallengeById(challengeId).first() ?: return
+        dao.updateChallenge(challengeEntity.copy(status = "abandoned"))
     }
 
     suspend fun seedDefaults() {
