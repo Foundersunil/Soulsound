@@ -36,6 +36,10 @@ import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -43,9 +47,12 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -58,6 +65,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -102,7 +111,16 @@ fun DetailScreen(
 ) {
     BackHandler { onBackClick() }
 
-    var selectedDurationMinutes by remember { mutableIntStateOf(frequency.durationMinutes) }
+    var selectedDurationMinutes by remember(frequency.id, totalDurationMs) {
+        mutableIntStateOf(
+            if (totalDurationMs == Long.MAX_VALUE) 0
+            else (totalDurationMs / (60 * 1000L)).toInt().takeIf { it > 0 } ?: frequency.durationMinutes
+        )
+    }
+    var customDurationMinutes by remember { mutableStateOf<Int?>(null) }
+    var showCustomDurationDialog by remember { mutableStateOf(false) }
+    var customInputText by remember { mutableStateOf("") }
+    var customInputError by remember { mutableStateOf<String?>(null) }
     var showSleepTimerMenu by remember { mutableStateOf(false) }
 
     LazyColumn(
@@ -161,24 +179,38 @@ fun DetailScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 ResonanceVisualizer(
-                    sizeDp = 240.dp,
+                    sizeDp = 270.dp,
                     isPlaying = isPlaying,
                     amplitude = amplitude
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    val hzNumber = if (frequency.hz % 1.0f == 0.0f) "${frequency.hz.toInt()}" else "${frequency.hz}"
+                    val numberFontSize = when {
+                        hzNumber.length <= 3 -> 34.sp
+                        hzNumber.length == 4 -> 30.sp
+                        hzNumber.length == 5 -> 26.sp
+                        else -> 22.sp
+                    }
+
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
                         Text(
-                            text = if (frequency.hz % 1.0f == 0.0f) "${frequency.hz.toInt()}" else "${frequency.hz}",
+                            text = hzNumber,
                             color = TextPrimary,
-                            fontSize = 44.sp,
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = (-1).sp
+                            fontSize = numberFontSize,
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = (-0.5).sp,
+                            textAlign = TextAlign.Center
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "Hz",
                             color = OrangePrimary,
-                            fontSize = 16.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
-                            letterSpacing = 2.sp
+                            letterSpacing = 2.5.sp,
+                            textAlign = TextAlign.Center
                         )
                     }
                 }
@@ -188,7 +220,7 @@ fun DetailScreen(
                 Text(
                     text = frequency.name,
                     color = TextPrimary,
-                    fontSize = 24.sp,
+                    fontSize = 22.sp,
                     fontWeight = FontWeight.ExtraBold,
                     textAlign = TextAlign.Center
                 )
@@ -207,15 +239,22 @@ fun DetailScreen(
         // Sound Mode Selector (Pure Tone / Harmonic Drone / Binaural Beats)
         item {
             Spacer(modifier = Modifier.height(18.dp))
-            Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
                 Text(
                     text = "SOUNDSCAPE MODE",
                     color = TextSubtle,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
+                    letterSpacing = 1.2.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -226,7 +265,7 @@ fun DetailScreen(
                         Card(
                             shape = RoundedCornerShape(12.dp),
                             colors = CardDefaults.cardColors(
-                                containerColor = if (isSelected) Color(0xFF2E190A) else DarkCard
+                                containerColor = if (isSelected) Color(0xFF2A1507) else DarkCard
                             ),
                             border = BorderStroke(
                                 1.dp,
@@ -234,18 +273,22 @@ fun DetailScreen(
                             ),
                             modifier = Modifier
                                 .weight(1f)
+                                .height(42.dp)
                                 .clickable { onSoundModeChange(mode) }
                         ) {
-                            Column(
-                                modifier = Modifier.padding(vertical = 10.dp, horizontal = 6.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 4.dp)
                             ) {
                                 Text(
                                     text = mode.label,
                                     color = if (isSelected) OrangePrimary else TextPrimary,
                                     fontSize = 11.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    textAlign = TextAlign.Center
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 1
                                 )
                             }
                         }
@@ -257,24 +300,31 @@ fun DetailScreen(
         // Duration Selector
         item {
             Spacer(modifier = Modifier.height(18.dp))
-            Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
                 Text(
                     text = "TARGET DURATION",
                     color = TextSubtle,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
+                    letterSpacing = 1.2.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                val durationOptions = listOf(10, 20, 30, 60, 0)
+                // Row 1: 4 Preset Durations (10:00, 20:00, 30:00, 60:00)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    durationOptions.forEach { mins ->
-                        val isSelected = selectedDurationMinutes == mins
-                        val label = if (mins == 0) "Continuous" else "$mins:00"
+                    val presets = listOf(10, 20, 30, 60)
+                    presets.forEach { mins ->
+                        val isSelected = selectedDurationMinutes == mins && customDurationMinutes != mins
                         Card(
                             shape = RoundedCornerShape(12.dp),
                             colors = CardDefaults.cardColors(
@@ -286,23 +336,107 @@ fun DetailScreen(
                             ),
                             modifier = Modifier
                                 .weight(1f)
+                                .height(42.dp)
                                 .clickable {
                                     selectedDurationMinutes = mins
+                                    customDurationMinutes = null
                                     onDurationSelected(mins)
                                 }
                         ) {
                             Box(
                                 contentAlignment = Alignment.Center,
-                                modifier = Modifier.padding(vertical = 9.dp)
+                                modifier = Modifier.fillMaxSize()
                             ) {
                                 Text(
-                                    text = label,
+                                    text = "$mins:00",
                                     color = if (isSelected) Color.Black else TextPrimary,
-                                    fontSize = 11.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                     textAlign = TextAlign.Center
                                 )
                             }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Row 2: Custom & Continuous (Centered, Balanced)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Custom Button
+                    val isCustomSelected = customDurationMinutes != null && selectedDurationMinutes == customDurationMinutes
+                    val customLabel = if (isCustomSelected && customDurationMinutes != null) {
+                        "Custom • ${customDurationMinutes}m"
+                    } else {
+                        "Custom"
+                    }
+
+                    Card(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isCustomSelected) OrangePrimary else DarkCard
+                        ),
+                        border = BorderStroke(
+                            1.dp,
+                            if (isCustomSelected) OrangePrimary else BorderSubtle
+                        ),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(42.dp)
+                            .clickable {
+                                customInputText = customDurationMinutes?.toString() ?: "45"
+                                customInputError = null
+                                showCustomDurationDialog = true
+                            }
+                    ) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            Text(
+                                text = customLabel,
+                                color = if (isCustomSelected) Color.Black else TextPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = if (isCustomSelected) FontWeight.Bold else FontWeight.Medium,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+
+                    // Continuous Button
+                    val isContinuousSelected = selectedDurationMinutes == 0 || totalDurationMs == Long.MAX_VALUE
+                    Card(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isContinuousSelected) OrangePrimary else DarkCard
+                        ),
+                        border = BorderStroke(
+                            1.dp,
+                            if (isContinuousSelected) OrangePrimary else BorderSubtle
+                        ),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(42.dp)
+                            .clickable {
+                                selectedDurationMinutes = 0
+                                customDurationMinutes = null
+                                onDurationSelected(0)
+                            }
+                    ) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            Text(
+                                text = "Continuous",
+                                color = if (isContinuousSelected) Color.Black else TextPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = if (isContinuousSelected) FontWeight.Bold else FontWeight.Medium,
+                                textAlign = TextAlign.Center
+                            )
                         }
                     }
                 }
@@ -313,7 +447,8 @@ fun DetailScreen(
         item {
             Spacer(modifier = Modifier.height(20.dp))
             Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-                val durationValid = totalDurationMs > 0 && totalDurationMs != Long.MAX_VALUE
+                val isContinuous = totalDurationMs == Long.MAX_VALUE || selectedDurationMinutes == 0
+                val durationValid = !isContinuous && totalDurationMs > 0
                 val currentFraction = if (durationValid) {
                     (progressMs.toFloat() / totalDurationMs.toFloat()).coerceIn(0f, 1f)
                 } else 0f
@@ -325,10 +460,14 @@ fun DetailScreen(
                             onSeekTo((frac * totalDurationMs).toLong())
                         }
                     },
+                    enabled = durationValid,
                     colors = SliderDefaults.colors(
                         thumbColor = OrangePrimary,
                         activeTrackColor = OrangePrimary,
-                        inactiveTrackColor = Color(0x33FF6A00)
+                        inactiveTrackColor = Color(0x33FF6A00),
+                        disabledThumbColor = OrangePrimary.copy(alpha = 0.5f),
+                        disabledActiveTrackColor = OrangePrimary.copy(alpha = 0.5f),
+                        disabledInactiveTrackColor = Color(0x22FF6A00)
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -343,9 +482,10 @@ fun DetailScreen(
                         fontSize = 11.sp
                     )
                     Text(
-                        text = if (totalDurationMs == Long.MAX_VALUE) "Continuous" else formatTimeMs(totalDurationMs),
-                        color = TextMuted,
-                        fontSize = 11.sp
+                        text = if (isContinuous) "Continuous" else formatTimeMs(totalDurationMs),
+                        color = if (isContinuous) OrangePrimary else TextMuted,
+                        fontSize = 11.sp,
+                        fontWeight = if (isContinuous) FontWeight.Bold else FontWeight.Normal
                     )
                 }
             }
@@ -621,6 +761,144 @@ fun DetailScreen(
                 }
             }
         }
+    }
+
+    // Custom Duration Dialog
+    if (showCustomDurationDialog) {
+        AlertDialog(
+            onDismissRequest = { showCustomDurationDialog = false },
+            title = {
+                Text(
+                    text = "Custom Duration",
+                    color = TextPrimary,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "Enter your target session duration in minutes (1 – 180 min):",
+                        color = TextMuted,
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    OutlinedTextField(
+                        value = customInputText,
+                        onValueChange = {
+                            val filtered = it.filter { ch -> ch.isDigit() }.take(3)
+                            customInputText = filtered
+                            customInputError = null
+                        },
+                        label = { Text("Minutes") },
+                        placeholder = { Text("e.g. 45") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Number,
+                            imeAction = ImeAction.Done
+                        ),
+                        isError = customInputError != null,
+                        supportingText = {
+                            if (customInputError != null) {
+                                Text(customInputError!!, color = Color(0xFFFF5252), fontSize = 11.sp)
+                            } else {
+                                Text("Minimum 1 min • Maximum 180 min", color = TextSubtle, fontSize = 11.sp)
+                            }
+                        },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = OrangePrimary,
+                            unfocusedBorderColor = BorderSubtle,
+                            errorBorderColor = Color(0xFFFF5252),
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Text(
+                        text = "Quick Presets:",
+                        color = TextSubtle,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf(5, 15, 45, 90, 120).forEach { presetMins ->
+                            Card(
+                                shape = RoundedCornerShape(8.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (customInputText == "$presetMins") Color(0xFF2E190A) else DarkCardElevated
+                                ),
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (customInputText == "$presetMins") OrangePrimary else BorderSubtle
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable {
+                                        customInputText = "$presetMins"
+                                        customInputError = null
+                                    }
+                            ) {
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = "${presetMins}m",
+                                        color = if (customInputText == "$presetMins") OrangePrimary else TextMuted,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val mins = customInputText.trim().toIntOrNull()
+                        if (mins == null || mins < 1 || mins > 180) {
+                            customInputError = "Please enter a valid duration."
+                            return@Button
+                        }
+                        customDurationMinutes = mins
+                        selectedDurationMinutes = mins
+                        onDurationSelected(mins)
+                        showCustomDurationDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = OrangePrimary,
+                        contentColor = Color.Black
+                    ),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Set Duration", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showCustomDurationDialog = false }
+                ) {
+                    Text("Cancel", color = TextMuted)
+                }
+            },
+            containerColor = DarkCardElevated,
+            shape = RoundedCornerShape(18.dp)
+        )
     }
 }
 

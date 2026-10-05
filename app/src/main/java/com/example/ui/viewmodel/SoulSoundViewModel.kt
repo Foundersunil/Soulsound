@@ -6,6 +6,10 @@ import androidx.lifecycle.viewModelScope
 import com.example.audio.SoulSoundAudioEngine
 import com.example.auth.AdminAuthManager
 import com.example.auth.AdminAuthResult
+import com.example.auth.PasswordStrength
+import com.example.auth.UserAuthManager
+import com.example.auth.UserAuthResult
+import com.example.auth.UserAuthState
 import com.example.data.db.SoulSoundDatabase
 import com.example.data.model.AchievementBadge
 import com.example.data.model.AdminAuditLog
@@ -33,6 +37,8 @@ enum class Screen(val title: String) {
     SEARCH("Search"),
     LIBRARY("My Library"),
     PROFILE("Profile"),
+    AUTH_LOGIN("Log In"),
+    AUTH_SIGN_UP("Create Account"),
     ADMIN_LOGIN("Admin Portal"),
     ADMIN("Studio Admin")
 }
@@ -67,8 +73,18 @@ class SoulSoundViewModel(application: Application) : AndroidViewModel(applicatio
     private val repository = SoulSoundRepository(db.soulSoundDao(), viewModelScope)
     val audioEngine = SoulSoundAudioEngine(viewModelScope)
 
+    // Normal User Authentication (Firebase Auth)
+    val userAuthManager = UserAuthManager(application, viewModelScope)
+    val userAuthState: StateFlow<UserAuthState> = userAuthManager.userAuthState
+    val userAuthError: StateFlow<String?> = userAuthManager.authError
+    val userAuthLoading: StateFlow<Boolean> = userAuthManager.authLoading
+    val userPasswordResetSuccess: StateFlow<String?> = userAuthManager.passwordResetSuccess
+    val isFirebaseConnected: Boolean = userAuthManager.isFirebaseConnected
+
     // Screens and Navigation
-    private val _currentScreen = MutableStateFlow(Screen.HOME)
+    private val _currentScreen = MutableStateFlow(
+        if (userAuthManager.userAuthState.value.isLoggedIn) Screen.HOME else Screen.AUTH_LOGIN
+    )
     val currentScreen: StateFlow<Screen> = _currentScreen.asStateFlow()
 
     private val _selectedFrequency = MutableStateFlow<FrequencyItem?>(null)
@@ -155,6 +171,16 @@ class SoulSoundViewModel(application: Application) : AndroidViewModel(applicatio
     val recoveryStatusMessage: StateFlow<String?> = _recoveryStatusMessage.asStateFlow()
 
     init {
+        viewModelScope.launch {
+            userAuthManager.userAuthState.collectLatest { authState ->
+                if (authState.isLoggedIn && !authState.uid.isNullOrBlank()) {
+                    repository.setActiveUser(authState.uid, authState.email, authState.displayName)
+                } else {
+                    repository.clearActiveUser()
+                }
+            }
+        }
+
         viewModelScope.launch {
             repository.activeChallenge.collectLatest { challenge ->
                 if (challenge != null) {
@@ -739,22 +765,61 @@ class SoulSoundViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun resetOrLogoutProfile() {
+    // Normal User Authentication Actions
+    fun signUpUser(email: String, pass: String, confirm: String) {
         viewModelScope.launch {
-            repository.updateUserProfile(
-                UserProfileStats(
-                    userId = "soul_user",
-                    userName = "Guest Listener",
-                    userEmail = "listener@soulsound.app",
-                    soulPoints = 0,
-                    totalPracticeMinutes = 0,
-                    totalDaysCompleted = 0,
-                    currentStreak = 0,
-                    longestStreak = 0,
-                    completedChallengesCount = 0
-                )
-            )
+            val result = userAuthManager.signUp(email, pass, confirm)
+            if (result is UserAuthResult.Success) {
+                repository.setActiveUser(result.uid, result.email, email.substringBefore('@').replaceFirstChar { it.uppercase() })
+                _currentScreen.value = Screen.HOME
+            }
         }
+    }
+
+    fun logInUser(email: String, pass: String) {
+        viewModelScope.launch {
+            val result = userAuthManager.logIn(email, pass)
+            if (result is UserAuthResult.Success) {
+                repository.setActiveUser(result.uid, result.email, email.substringBefore('@').replaceFirstChar { it.uppercase() })
+                _currentScreen.value = Screen.HOME
+            }
+        }
+    }
+
+    fun sendPasswordReset(email: String) {
+        viewModelScope.launch {
+            userAuthManager.sendPasswordReset(email)
+        }
+    }
+
+    fun logOutUser() {
+        userAuthManager.signOut()
+        viewModelScope.launch {
+            repository.clearActiveUser()
+        }
+        _currentScreen.value = Screen.AUTH_LOGIN
+    }
+
+    fun resetOrLogoutProfile() {
+        logOutUser()
+    }
+
+    fun continueAsGuest() {
+        _currentScreen.value = Screen.HOME
+    }
+
+    fun navigateToLogin() {
+        userAuthManager.clearErrors()
+        _currentScreen.value = Screen.AUTH_LOGIN
+    }
+
+    fun navigateToSignUp() {
+        userAuthManager.clearErrors()
+        _currentScreen.value = Screen.AUTH_SIGN_UP
+    }
+
+    fun calculatePasswordStrength(pass: String): PasswordStrength {
+        return userAuthManager.calculatePasswordStrength(pass)
     }
 
     override fun onCleared() {

@@ -118,6 +118,9 @@ interface SoulSoundDao {
     suspend fun updateDayProgress(dayId: String, listenedMinutes: Int, isCompleted: Boolean, completedAtMillis: Long?)
 
     // User Profile
+    @Query("SELECT * FROM user_profile WHERE userId = :userId LIMIT 1")
+    fun getUserProfileById(userId: String): Flow<UserProfileEntity?>
+
     @Query("SELECT * FROM user_profile WHERE userId = 'soul_user' LIMIT 1")
     fun getUserProfile(): Flow<UserProfileEntity?>
 

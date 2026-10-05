@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -121,6 +122,9 @@ fun ProfileScreen(
     recentlyPlayed: List<FrequencyItem>,
     currentTrack: FrequencyItem?,
     isPlaying: Boolean,
+    isUserLoggedIn: Boolean = true,
+    onNavigateToLogin: () -> Unit = {},
+    onNavigateToSignUp: () -> Unit = {},
     onPlayClick: (FrequencyItem) -> Unit,
     onFrequencyClick: (FrequencyItem) -> Unit,
     onViewAllFavorites: () -> Unit,
@@ -136,6 +140,84 @@ fun ProfileScreen(
     var showEditProfileDialog by remember { mutableStateOf(false) }
     var activeInfoDialog by remember { mutableStateOf<String?>(null) }
     var showLogoutConfirmation by remember { mutableStateOf(false) }
+
+    // Logged Out State View (Requirement 17)
+    if (!isUserLoggedIn) {
+        Column(
+            modifier = modifier
+                .fillMaxSize()
+                .background(DarkBg)
+                .padding(28.dp)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(80.dp)
+                    .clip(CircleShape)
+                    .background(DarkCardElevated),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = null,
+                    tint = OrangePrimary,
+                    modifier = Modifier.size(42.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Text(
+                text = "Welcome to SoulSound",
+                color = TextPrimary,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.ExtraBold,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "Log in to track your listening, challenges and progress.",
+                color = TextMuted,
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+                lineHeight = 20.sp
+            )
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            Button(
+                onClick = onNavigateToLogin,
+                colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary, contentColor = Color.Black),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .testTag("profile_logged_out_login_button")
+            ) {
+                Text("Log In", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedButton(
+                onClick = onNavigateToSignUp,
+                border = BorderStroke(1.dp, BorderOrange),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = OrangePrimary),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .testTag("profile_logged_out_signup_button")
+            ) {
+                Text("Create Account", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            }
+        }
+        return
+    }
 
     val isBrandNewUser = userProfile.totalPracticeMinutes == 0 && userProfile.totalDaysCompleted == 0 && recentlyPlayed.isEmpty()
 
@@ -279,13 +361,13 @@ fun ProfileScreen(
         )
     }
 
-    // Logout Confirmation Dialog
+    // Logout Confirmation Dialog (Requirement 19)
     if (showLogoutConfirmation) {
         AlertDialog(
             onDismissRequest = { showLogoutConfirmation = false },
             title = {
                 Text(
-                    text = "Sign Out / Reset Profile",
+                    text = "Log out of SoulSound?",
                     color = TextPrimary,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
@@ -293,7 +375,7 @@ fun ProfileScreen(
             },
             text = {
                 Text(
-                    text = "Are you sure you want to sign out? Your sound preferences and offline listening history will remain secure.",
+                    text = "You can log back in anytime with your email and password.",
                     color = TextMuted,
                     fontSize = 14.sp
                 )
@@ -306,7 +388,7 @@ fun ProfileScreen(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary, contentColor = Color.Black)
                 ) {
-                    Text("Confirm Sign Out", fontWeight = FontWeight.Bold)
+                    Text("Log Out", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {

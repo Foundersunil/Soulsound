@@ -16,8 +16,14 @@ import com.example.data.model.MilestoneCelebration
 import com.example.data.model.UserProfileStats
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -171,11 +177,74 @@ class SoulSoundRepository(
     val allChallenges: Flow<List<ChallengeItem>> =
         dao.getAllChallenges().map { list -> list.map { it.toDomain() } }
 
-    val userProfile: Flow<UserProfileStats> =
-        dao.getUserProfile().map { it?.toDomain() ?: UserProfileStats() }
+    private val _activeUserId = MutableStateFlow<String?>("soul_user")
+    val activeUserId: StateFlow<String?> = _activeUserId.asStateFlow()
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val userProfile: Flow<UserProfileStats> = _activeUserId.flatMapLatest { uid ->
+        if (uid.isNullOrBlank()) {
+            flowOf(
+                UserProfileStats(
+                    userId = "guest",
+                    userName = "Guest Traveler",
+                    userEmail = "",
+                    soulPoints = 0,
+                    totalPracticeMinutes = 0,
+                    totalDaysCompleted = 0,
+                    currentStreak = 0,
+                    longestStreak = 0,
+                    completedChallengesCount = 0
+                )
+            )
+        } else {
+            dao.getUserProfileById(uid).map {
+                it?.toDomain() ?: UserProfileStats(
+                    userId = uid,
+                    userName = "Soul Traveler",
+                    userEmail = "",
+                    soulPoints = 0,
+                    totalPracticeMinutes = 0,
+                    totalDaysCompleted = 0,
+                    currentStreak = 0,
+                    longestStreak = 0,
+                    completedChallengesCount = 0
+                )
+            }
+        }
+    }
+
+    suspend fun setActiveUser(uid: String?, email: String?, displayName: String?) {
+        _activeUserId.value = uid
+        if (!uid.isNullOrBlank()) {
+            val existing = dao.getUserProfileById(uid).first()
+            if (existing == null) {
+                val newProfile = UserProfileEntity(
+                    userId = uid,
+                    userName = displayName ?: email?.substringBefore('@')?.replaceFirstChar { it.uppercase() } ?: "Soul Traveler",
+                    userEmail = email ?: "",
+                    preferredGoalsCsv = "Meditation|Focus|Sleep",
+                    reminderTime = "08:00 PM",
+                    reminderEnabled = true,
+                    soulPoints = 0,
+                    totalPracticeMinutes = 0,
+                    totalDaysCompleted = 0,
+                    currentStreak = 0,
+                    longestStreak = 0,
+                    completedChallengesCount = 0
+                )
+                dao.insertOrUpdateUserProfile(newProfile)
+            }
+        }
+    }
+
+    suspend fun clearActiveUser() {
+        _activeUserId.value = null
+    }
 
     suspend fun updateUserProfile(profile: UserProfileStats) {
-        dao.insertOrUpdateUserProfile(com.example.data.db.UserProfileEntity.fromDomain(profile))
+        val uid = _activeUserId.value ?: profile.userId
+        val finalProfile = profile.copy(userId = uid)
+        dao.insertOrUpdateUserProfile(com.example.data.db.UserProfileEntity.fromDomain(finalProfile))
     }
 
     fun getDaysForChallenge(challengeId: String): Flow<List<ChallengeDayItem>> {
@@ -348,8 +417,10 @@ class SoulSoundRepository(
         )
         dao.updateChallenge(updatedChallenge)
 
-        val currentProfile = dao.getUserProfile().first() ?: UserProfileEntity()
+        val currentUid = _activeUserId.value ?: "soul_user"
+        val currentProfile = dao.getUserProfileById(currentUid).first() ?: UserProfileEntity(userId = currentUid)
         val updatedProfile = currentProfile.copy(
+            userId = currentUid,
             soulPoints = currentProfile.soulPoints + pointsEarned,
             totalPracticeMinutes = currentProfile.totalPracticeMinutes + challenge.dailyTargetMinutes,
             totalDaysCompleted = currentProfile.totalDaysCompleted + 1,

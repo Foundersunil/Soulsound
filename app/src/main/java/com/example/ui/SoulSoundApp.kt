@@ -1,5 +1,6 @@
 package com.example.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -49,6 +50,8 @@ import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.LibraryScreen
 import com.example.ui.screens.ProfileScreen
 import com.example.ui.screens.SearchScreen
+import com.example.ui.screens.UserLoginScreen
+import com.example.ui.screens.UserSignUpScreen
 import com.example.ui.theme.DarkBg
 import com.example.ui.theme.DarkCardElevated
 import com.example.ui.theme.GoldAccent
@@ -112,6 +115,21 @@ fun SoulSoundApp(
     val adminLoginError by viewModel.adminLoginError.collectAsStateWithLifecycle()
     val adminLoginLoading by viewModel.adminLoginLoading.collectAsStateWithLifecycle()
 
+    val userAuthState by viewModel.userAuthState.collectAsStateWithLifecycle()
+    val userAuthError by viewModel.userAuthError.collectAsStateWithLifecycle()
+    val userAuthLoading by viewModel.userAuthLoading.collectAsStateWithLifecycle()
+    val userPasswordResetSuccess by viewModel.userPasswordResetSuccess.collectAsStateWithLifecycle()
+
+    if (currentScreen == Screen.AUTH_SIGN_UP) {
+        BackHandler {
+            viewModel.navigateToLogin()
+        }
+    } else if (currentScreen == Screen.ADMIN_LOGIN || currentScreen == Screen.ADMIN || currentScreen == Screen.SEARCH) {
+        BackHandler {
+            viewModel.navigateTo(Screen.HOME)
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -119,6 +137,7 @@ fun SoulSoundApp(
     ) {
         if (selectedFrequency != null) {
             val freq = selectedFrequency!!
+            BackHandler { viewModel.closeDetail() }
             DetailScreen(
                 frequency = freq,
                 allFrequencies = allFrequencies,
@@ -148,6 +167,32 @@ fun SoulSoundApp(
                     viewModel.openDetail(newFreq)
                     viewModel.playTrack(newFreq)
                 },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .windowInsetsPadding(WindowInsets.statusBars)
+            )
+        } else if (currentScreen == Screen.AUTH_LOGIN) {
+            UserLoginScreen(
+                onLoginSubmit = { email, password -> viewModel.logInUser(email, password) },
+                onNavigateToSignUp = { viewModel.navigateToSignUp() },
+                onContinueAsGuest = { viewModel.continueAsGuest() },
+                onForgotPasswordSubmit = { email -> viewModel.sendPasswordReset(email) },
+                errorMessage = userAuthError,
+                passwordResetMessage = userPasswordResetSuccess,
+                isLoading = userAuthLoading,
+                isFirebaseConnected = viewModel.isFirebaseConnected,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .windowInsetsPadding(WindowInsets.statusBars)
+            )
+        } else if (currentScreen == Screen.AUTH_SIGN_UP) {
+            UserSignUpScreen(
+                onSignUpSubmit = { email, password, confirmPassword -> viewModel.signUpUser(email, password, confirmPassword) },
+                onNavigateToLogin = { viewModel.navigateToLogin() },
+                onContinueAsGuest = { viewModel.continueAsGuest() },
+                errorMessage = userAuthError,
+                isLoading = userAuthLoading,
+                onCalculateStrength = { pass -> viewModel.calculatePasswordStrength(pass) },
                 modifier = Modifier
                     .fillMaxSize()
                     .windowInsetsPadding(WindowInsets.statusBars)
@@ -269,6 +314,9 @@ fun SoulSoundApp(
                             recentlyPlayed = profileRecentlyPlayed,
                             currentTrack = currentTrack,
                             isPlaying = isPlaying,
+                            isUserLoggedIn = userAuthState.isLoggedIn,
+                            onNavigateToLogin = { viewModel.navigateToLogin() },
+                            onNavigateToSignUp = { viewModel.navigateToSignUp() },
                             onPlayClick = { freq -> viewModel.playOrToggleTrack(freq) },
                             onFrequencyClick = { freq -> viewModel.openDetail(freq) },
                             onViewAllFavorites = { viewModel.navigateTo(Screen.LIBRARY) },
@@ -296,7 +344,25 @@ fun SoulSoundApp(
                             onUpdateProfile = { name, email, goals, reminderTime, reminderEnabled, avatarUri ->
                                 viewModel.updateUserProfile(name, email, goals, reminderTime, reminderEnabled, avatarUri)
                             },
-                            onLogout = { viewModel.resetOrLogoutProfile() }
+                            onLogout = { viewModel.logOutUser() }
+                        )
+                        Screen.AUTH_LOGIN -> UserLoginScreen(
+                            onLoginSubmit = { email, password -> viewModel.logInUser(email, password) },
+                            onNavigateToSignUp = { viewModel.navigateToSignUp() },
+                            onContinueAsGuest = { viewModel.continueAsGuest() },
+                            onForgotPasswordSubmit = { email -> viewModel.sendPasswordReset(email) },
+                            errorMessage = userAuthError,
+                            passwordResetMessage = userPasswordResetSuccess,
+                            isLoading = userAuthLoading,
+                            isFirebaseConnected = viewModel.isFirebaseConnected
+                        )
+                        Screen.AUTH_SIGN_UP -> UserSignUpScreen(
+                            onSignUpSubmit = { email, password, confirmPassword -> viewModel.signUpUser(email, password, confirmPassword) },
+                            onNavigateToLogin = { viewModel.navigateToLogin() },
+                            onContinueAsGuest = { viewModel.continueAsGuest() },
+                            errorMessage = userAuthError,
+                            isLoading = userAuthLoading,
+                            onCalculateStrength = { pass -> viewModel.calculatePasswordStrength(pass) }
                         )
                         Screen.ADMIN_LOGIN -> AdminLoginScreen(
                             onLoginSubmit = { email, password -> viewModel.loginAdmin(email, password) },
