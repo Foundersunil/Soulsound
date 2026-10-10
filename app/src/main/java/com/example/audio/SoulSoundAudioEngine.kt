@@ -57,10 +57,27 @@ class SoulSoundAudioEngine(
     private var rightPhase = 0.0
     private var harmonicPhase = 0.0
 
+    fun selectTrack(track: FrequencyItem, targetDurationMinutes: Int? = null) {
+        val sameTrack = _currentTrack.value?.id == track.id
+        _currentTrack.value = track
+        // Default target duration is beginner-friendly 2:00 (2 minutes)
+        val targetMins = targetDurationMinutes ?: 2
+        val dur = targetMins * 60 * 1000L
+        _totalDurationMs.value = if (dur <= 0L) Long.MAX_VALUE else dur
+
+        if (!sameTrack) {
+            _progressMs.value = 0L
+            stopPlayback()
+            _isPlaying.value = false
+        }
+    }
+
     fun playTrack(track: FrequencyItem, targetDurationMinutes: Int? = null) {
         val sameTrack = _currentTrack.value?.id == track.id
         _currentTrack.value = track
-        val dur = (targetDurationMinutes ?: track.durationMinutes) * 60 * 1000L
+        // Default target duration is beginner-friendly 2:00 (2 minutes)
+        val targetMins = targetDurationMinutes ?: 2
+        val dur = targetMins * 60 * 1000L
         _totalDurationMs.value = if (dur <= 0L) Long.MAX_VALUE else dur
 
         if (!sameTrack) {
@@ -360,6 +377,17 @@ class SoulSoundAudioEngine(
             audioTrack?.release()
         } catch (_: Exception) {}
         audioTrack = null
+        _liveAmplitude.value = 0.05f
+    }
+
+    fun resetSession() {
+        stopPlayback()
+        timerJob?.cancel()
+        timerJob = null
+        _isPlaying.value = false
+        _currentTrack.value = null
+        _progressMs.value = 0L
+        _sleepTimerSeconds.value = null
         _liveAmplitude.value = 0.05f
     }
 

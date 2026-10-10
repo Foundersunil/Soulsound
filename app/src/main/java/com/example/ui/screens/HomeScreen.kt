@@ -78,6 +78,8 @@ fun HomeScreen(
     allFrequencies: List<FrequencyItem>,
     currentTrack: FrequencyItem?,
     isPlaying: Boolean,
+    progressMs: Long = 0L,
+    totalDurationMs: Long = 0L,
     favoriteIds: Set<String>,
     activeChallenge: ChallengeItem? = null,
     onExploreClick: () -> Unit,
@@ -93,15 +95,8 @@ fun HomeScreen(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 120.dp)
     ) {
-        // Hero Section
         item {
-            HeroSection(
-                onExploreClick = onExploreClick,
-                onContinueClick = {
-                    val track = currentTrack ?: featuredFrequencies.firstOrNull()
-                    if (track != null) onPlayClick(track)
-                }
-            )
+            Spacer(modifier = Modifier.height(10.dp))
         }
 
         // Home Challenge Consistency Widget
@@ -118,15 +113,16 @@ fun HomeScreen(
             GoalSelectorSection(onGoalSelected = onGoalSelected)
         }
 
-        // Continue Listening (if active or last played)
-        item {
-            val trackToDisplay = currentTrack ?: allFrequencies.firstOrNull()
-            if (trackToDisplay != null) {
+        // Continue Listening (only shown when an audio item is actively selected or playing in current session)
+        if (currentTrack != null) {
+            item {
                 ContinueListeningSection(
-                    track = trackToDisplay,
-                    isPlaying = isPlaying && currentTrack?.id == trackToDisplay.id,
-                    onPlayClick = { onPlayClick(trackToDisplay) },
-                    onTrackClick = { onFrequencyClick(trackToDisplay) }
+                    track = currentTrack,
+                    isPlaying = isPlaying,
+                    progressMs = progressMs,
+                    totalDurationMs = totalDurationMs,
+                    onPlayClick = { onPlayClick(currentTrack) },
+                    onTrackClick = { onFrequencyClick(currentTrack) }
                 )
             }
         }
@@ -205,116 +201,6 @@ fun HomeScreen(
     }
 }
 
-@Composable
-private fun HeroSection(
-    onExploreClick: () -> Unit,
-    onContinueClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 12.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFF1F130B),
-                        Color(0xFF121212)
-                    )
-                )
-            )
-            .border(1.dp, BorderOrange, RoundedCornerShape(24.dp))
-            .padding(24.dp)
-    ) {
-        Column {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .background(OrangePrimary.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
-                    .padding(horizontal = 10.dp, vertical = 4.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Waves,
-                    contentDescription = null,
-                    tint = OrangePrimary,
-                    modifier = Modifier.size(14.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "PURE FREQUENCY LIBRARY",
-                    color = OrangePrimary,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                )
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            Text(
-                text = "Change Your State.\nExplore Your Frequency.",
-                color = TextPrimary,
-                fontSize = 26.sp,
-                fontWeight = FontWeight.ExtraBold,
-                lineHeight = 32.sp
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Text(
-                text = "Discover sound and frequency experiences designed for focus, relaxation, meditation, sleep, energy, abundance practices and more.",
-                color = TextMuted,
-                fontSize = 13.sp,
-                lineHeight = 19.sp
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Button(
-                    onClick = onExploreClick,
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = OrangePrimary,
-                        contentColor = Color.Black
-                    ),
-                    modifier = Modifier
-                        .weight(1.2f)
-                        .height(46.dp)
-                        .testTag("hero_explore_cta")
-                ) {
-                    Text(
-                        text = "Explore Frequencies",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                OutlinedButton(
-                    onClick = onContinueClick,
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = TextPrimary
-                    ),
-                    border = BorderStroke(1.dp, BorderOrange),
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(46.dp)
-                        .testTag("hero_continue_cta")
-                ) {
-                    Text(
-                        text = "Continue",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-        }
-    }
-}
 
 @Composable
 private fun HomeChallengeWidget(
@@ -529,13 +415,27 @@ private fun GoalChip(
 private fun ContinueListeningSection(
     track: FrequencyItem,
     isPlaying: Boolean,
+    progressMs: Long,
+    totalDurationMs: Long,
     onPlayClick: () -> Unit,
     onTrackClick: () -> Unit
 ) {
+    val progressFraction = if (totalDurationMs > 0L && totalDurationMs != Long.MAX_VALUE) {
+        (progressMs.toFloat() / totalDurationMs.toFloat()).coerceIn(0f, 1f)
+    } else 0f
+
+    val formattedDuration = if (totalDurationMs > 0L && totalDurationMs != Long.MAX_VALUE) {
+        val totalSec = totalDurationMs / 1000
+        val mins = totalSec / 60
+        val secs = totalSec % 60
+        String.format("%02d:%02d", mins, secs)
+    } else "${track.durationMinutes} min"
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 12.dp)
+            .testTag("home_continue_listening_section")
     ) {
         Text(
             text = "CONTINUE LISTENING",
@@ -562,7 +462,10 @@ private fun ContinueListeningSection(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
                         Box(
                             contentAlignment = Alignment.Center,
                             modifier = Modifier
@@ -580,20 +483,25 @@ private fun ContinueListeningSection(
 
                         Spacer(modifier = Modifier.width(14.dp))
 
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = track.name,
                                 color = TextPrimary,
                                 fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
                             )
+                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "${track.category} • ${track.durationMinutes} min",
+                                text = "${track.category} • $formattedDuration",
                                 color = TextMuted,
-                                fontSize = 12.sp
+                                fontSize = 12.sp,
+                                maxLines = 1
                             )
                         }
                     }
+
+                    Spacer(modifier = Modifier.width(8.dp))
 
                     IconButton(
                         onClick = onPlayClick,
@@ -613,7 +521,7 @@ private fun ContinueListeningSection(
                 Spacer(modifier = Modifier.height(14.dp))
 
                 LinearProgressIndicator(
-                    progress = { 0.42f },
+                    progress = { progressFraction },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(3.dp),

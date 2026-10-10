@@ -450,6 +450,15 @@ class SoulSoundViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun openDetail(frequency: FrequencyItem) {
         _selectedFrequency.value = frequency
+        audioEngine.selectTrack(frequency)
+    }
+
+    fun selectTrack(frequency: FrequencyItem) {
+        audioEngine.selectTrack(frequency)
+    }
+
+    fun stopPlayback() {
+        audioEngine.resetSession()
     }
 
     fun closeDetail() {
@@ -770,6 +779,8 @@ class SoulSoundViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             val result = userAuthManager.signUp(email, pass, confirm)
             if (result is UserAuthResult.Success) {
+                audioEngine.resetSession()
+                _selectedFrequency.value = null
                 repository.setActiveUser(result.uid, result.email, email.substringBefore('@').replaceFirstChar { it.uppercase() })
                 _currentScreen.value = Screen.HOME
             }
@@ -780,6 +791,8 @@ class SoulSoundViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             val result = userAuthManager.logIn(email, pass)
             if (result is UserAuthResult.Success) {
+                audioEngine.resetSession()
+                _selectedFrequency.value = null
                 repository.setActiveUser(result.uid, result.email, email.substringBefore('@').replaceFirstChar { it.uppercase() })
                 _currentScreen.value = Screen.HOME
             }
@@ -793,6 +806,8 @@ class SoulSoundViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun logOutUser() {
+        audioEngine.resetSession()
+        _selectedFrequency.value = null
         userAuthManager.signOut()
         viewModelScope.launch {
             repository.clearActiveUser()
@@ -805,6 +820,8 @@ class SoulSoundViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun continueAsGuest() {
+        audioEngine.resetSession()
+        _selectedFrequency.value = null
         _currentScreen.value = Screen.HOME
     }
 

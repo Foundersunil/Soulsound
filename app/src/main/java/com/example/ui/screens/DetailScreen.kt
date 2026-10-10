@@ -113,8 +113,7 @@ fun DetailScreen(
 
     var selectedDurationMinutes by remember(frequency.id, totalDurationMs) {
         mutableIntStateOf(
-            if (totalDurationMs == Long.MAX_VALUE) 0
-            else (totalDurationMs / (60 * 1000L)).toInt().takeIf { it > 0 } ?: frequency.durationMinutes
+            (totalDurationMs / (60 * 1000L)).toInt().takeIf { it > 0 } ?: 2
         )
     }
     var customDurationMinutes by remember { mutableStateOf<Int?>(null) }
@@ -317,14 +316,16 @@ fun DetailScreen(
                 )
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Row 1: 4 Preset Durations (10:00, 20:00, 30:00, 60:00)
+                // Target Duration Buttons: 2:00, 5:00, 10:00, 30:00, 60:00, Custom
+                // Arranged in two neat, balanced 3-button rows for mobile and desktop screens
+                // Row 1: 2:00, 5:00, 10:00
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    val presets = listOf(10, 20, 30, 60)
-                    presets.forEach { mins ->
-                        val isSelected = selectedDurationMinutes == mins && customDurationMinutes != mins
+                    val row1Presets = listOf(2, 5, 10)
+                    row1Presets.forEach { mins ->
+                        val isSelected = selectedDurationMinutes == mins && customDurationMinutes == null
                         Card(
                             shape = RoundedCornerShape(12.dp),
                             colors = CardDefaults.cardColors(
@@ -361,11 +362,47 @@ fun DetailScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Row 2: Custom & Continuous (Centered, Balanced)
+                // Row 2: 30:00, 60:00, Custom
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    val row2Presets = listOf(30, 60)
+                    row2Presets.forEach { mins ->
+                        val isSelected = selectedDurationMinutes == mins && customDurationMinutes == null
+                        Card(
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isSelected) OrangePrimary else DarkCard
+                            ),
+                            border = BorderStroke(
+                                1.dp,
+                                if (isSelected) OrangePrimary else BorderSubtle
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(42.dp)
+                                .clickable {
+                                    selectedDurationMinutes = mins
+                                    customDurationMinutes = null
+                                    onDurationSelected(mins)
+                                }
+                        ) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                Text(
+                                    text = "$mins:00",
+                                    color = if (isSelected) Color.Black else TextPrimary,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+
                     // Custom Button
                     val isCustomSelected = customDurationMinutes != null && selectedDurationMinutes == customDurationMinutes
                     val customLabel = if (isCustomSelected && customDurationMinutes != null) {
@@ -387,7 +424,7 @@ fun DetailScreen(
                             .weight(1f)
                             .height(42.dp)
                             .clickable {
-                                customInputText = customDurationMinutes?.toString() ?: "45"
+                                customInputText = customDurationMinutes?.toString() ?: "15"
                                 customInputError = null
                                 showCustomDurationDialog = true
                             }
@@ -401,40 +438,6 @@ fun DetailScreen(
                                 color = if (isCustomSelected) Color.Black else TextPrimary,
                                 fontSize = 12.sp,
                                 fontWeight = if (isCustomSelected) FontWeight.Bold else FontWeight.Medium,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    }
-
-                    // Continuous Button
-                    val isContinuousSelected = selectedDurationMinutes == 0 || totalDurationMs == Long.MAX_VALUE
-                    Card(
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (isContinuousSelected) OrangePrimary else DarkCard
-                        ),
-                        border = BorderStroke(
-                            1.dp,
-                            if (isContinuousSelected) OrangePrimary else BorderSubtle
-                        ),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(42.dp)
-                            .clickable {
-                                selectedDurationMinutes = 0
-                                customDurationMinutes = null
-                                onDurationSelected(0)
-                            }
-                    ) {
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier.fillMaxSize()
-                        ) {
-                            Text(
-                                text = "Continuous",
-                                color = if (isContinuousSelected) Color.Black else TextPrimary,
-                                fontSize = 12.sp,
-                                fontWeight = if (isContinuousSelected) FontWeight.Bold else FontWeight.Medium,
                                 textAlign = TextAlign.Center
                             )
                         }
